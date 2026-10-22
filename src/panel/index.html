@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What the Cloud Saw</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#262d36; --text:#e6edf3; --muted:#8b949e;
+          --local:#3fb950; --device:#56d4dd; --cloud:#d29922; --bad:#f85149; --her:#bc8cff; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  header { display:flex; align-items:baseline; gap:24px; padding:18px 28px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  h1 { margin:0; font-size:20px; letter-spacing:-.01em; }
+  .stats { display:flex; gap:22px; color:var(--muted); font-size:14px; flex-wrap:wrap; }
+  .stats b { color:var(--text); font-size:20px; font-variant-numeric:tabular-nums; margin-right:4px; }
+  main { display:grid; grid-template-columns: 1.25fr 1fr; gap:20px; padding:20px 28px; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding:16px; } header { padding:16px; } }
+  section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; min-width:0; }
+  h2 { margin:0 0 12px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }
+  .call { border-top:1px solid var(--line); padding:12px 0; }
+  .call:first-of-type { border-top:0; padding-top:0; }
+  .row { display:flex; align-items:center; gap:10px; flex-wrap:wrap; }
+  .badge { font-size:12px; font-weight:600; padding:2px 8px; border-radius:99px; border:1px solid currentColor; white-space:nowrap; }
+  .local { color:var(--local); } .on-device { color:var(--device); } .cloud { color:var(--cloud); } .bad { color:var(--bad); }
+  .q { font-family:var(--mono); font-size:13px; }
+  .time { color:var(--muted); font-size:12px; margin-left:auto; font-variant-numeric:tabular-nums; }
+  .canary { font-size:13px; margin-top:6px; }
+  details { margin-top:6px; } summary { cursor:pointer; color:var(--muted); font-size:12px; }
+  pre { font-family:var(--mono); font-size:12px; background:var(--bg); padding:10px; border-radius:6px; overflow:auto; max-height:260px; white-space:pre-wrap; word-break:break-word; }
+  .nothing { color:var(--muted); font-size:13px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; }
+  td { padding:7px 6px; border-top:1px solid var(--line); vertical-align:top; }
+  td.amt { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .owner { font-weight:600; } .owner.me { color:var(--local); } .owner.her { color:var(--her); } .owner.shared { color:var(--device); } .owner.unknown { color:var(--cloud); }
+  .why { color:var(--muted); font-size:12px; }
+  .nudge { font-size:13px; padding:8px 0; border-top:1px solid var(--line); } .nudge:first-of-type { border-top:0; }
+</style>
+</head>
+<body>
+<header>
+  <h1>🔒 What the cloud saw</h1><a href="/ledger" style="font-size:13px;color:#56d4dd">📒 live ledger →</a>
+  <div class="stats" id="stats"></div>
+</header>
+<main>
+  <section><h2>Every answer, and what left this Mac</h2><div id="sent" class="canary"></div><div id="feed"></div></section>
+  <div style="display:grid; gap:20px; align-content:start; min-width:0">
+    <section><h2>Shared card: who paid (decided on your Mac)</h2><table id="attr"></table></section>
+    <section><h2>Proactive nudges (local)</h2><div id="nudges"></div></section>
+    <section><h2>What I remember (on this Mac · text "forget 2" to delete)</h2><div id="memories"></div></section>
+  </div>
+</main>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const usd = (c) => (c < 0 ? "-$" : "$") + (Math.abs(c) / 100).toFixed(2);
+const hhmm = (ts) => new Date(ts * 1000).toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+const day = (ts) => new Date(ts * 1000).toLocaleDateString([], { month: "short", day: "numeric" });
+const TIER = { local: "🟢 local", "on-device": "🟢 on-device", cloud: "🟡 cloud · symbols only" };
+
+function render(d) {
+  const t = d.totals;
+  $("stats").innerHTML =
+    `<span><b>${t.answers}</b>answers</span><span><b>${t.answers - t.cloud}</b>never left this Mac</span>` +
+    `<span><b>${t.exact}</b>exact values sent</span><span><b>${t.partial}</b>bucketed</span>` +
+    `<span><b class="${t.blocked ? "bad" : ""}">${t.blocked}</b>blocked by canary</span>`;
+
+  const st = d.sentToday;
+  $("sent").innerHTML = st && st.calls
+    ? `<div class="row" style="margin-bottom:12px">Cloud saw today, as symbols only: ${st.symbols.map((x) => `<span class="badge cloud q">${esc(x)}</span>`).join(" ") || "no symbols"}</div>`
+    : `<div class="local" style="margin-bottom:12px">Nothing has gone to the cloud today.</div>`;
+  $("feed").innerHTML = d.ledger.length ? d.ledger.map((r) => {
+    const blocked = r.canary_hits > 0;
+    // Demo fallback: the fake planner answers locally from canned plans; nothing went to any provider.
+    const fake = (r.payload_json ?? "").includes('"provider":"fake"');
+    const canary = r.tier !== "cloud" ? `<div class="canary local">0 bytes sent to any AI company</div>`
+      : blocked ? `<div class="canary bad">🔴 canary blocked this call: ${r.canary_hits} real value(s) found. Nothing was sent.</div>`
+      : fake ? `<div class="canary cloud">FAKE planner (demo mode): canned plan, nothing was sent. Canary still checked ${r.canary_checked ?? "?"} real values: 0 matches</div>`
+      : `<div class="canary local">✓ canary: 0 matches / ${r.canary_checked ?? "?"} real values checked</div>`;
+    let payload = "";
+    if (r.payload_json) { try { payload = JSON.stringify(JSON.parse(r.payload_json), null, 2); } catch { payload = r.payload_json; } }
+    return `<div class="call">
+      <div class="row"><span class="badge ${blocked ? "bad" : r.tier}">${blocked ? "🔴 blocked" : fake ? "🟡 cloud · FAKE planner (nothing sent)" : TIER[r.tier] ?? r.tier}</span>
+        <span class="q">${esc(r.question_sym ?? r.intent ?? "")}</span><span class="time">${hhmm(r.ts)}</span></div>
+      ${canary}
+      ${r.exact_disclosed ? `<div class="canary cloud">${r.exact_disclosed} exact value(s) shared with your consent (${esc(r.consent)})</div>` : ""}
+      ${payload ? `<details><summary>exact payload ${blocked ? "that was blocked" : fake ? "(fake planner: not sent)" : "sent"}</summary><pre>${esc(payload)}</pre></details>` : ""}
+    </div>`;
+  }).join("") : `<div class="nothing">Text the agent to see answers appear here.</div>`;
+
+  $("attr").innerHTML = d.attributions.map((r) => {
+    const ride = r.pickup_label ? ` · ${r.pickup_label}→${r.dropoff_label}` : r.items ? ` · ${r.items} item(s)` : "";
+    const wallet = r.wallet === "apple_pay" ? " · Apple Pay" : "";
+    return `<tr><td>${day(r.ts)}</td><td>${esc(r.merchant)}<div class="why">${esc(r.reason)}${ride}${wallet}${r.needs_prompt ? " · asking you" : ""}</div></td>
+      <td class="owner ${r.owner ?? "unknown"}">${r.owner ?? "?"}</td><td class="amt">${usd(r.amount_cents)}</td></tr>`;
+  }).join("") || `<tr><td class="nothing">No shared-card transactions yet.</td></tr>`;
+
+  $("nudges").innerHTML = d.nudges.map((n) =>
+    `<div class="nudge"><span class="badge local">${esc(n.kind)}</span> ${esc(n.text)} <span class="why">${day(n.ts)} ${hhmm(n.ts)}</span></div>`
+  ).join("") || `<div class="nothing">None yet.</div>`;
+}
+
+function renderMemories(d) {
+  $("memories").innerHTML = (d.memories ?? []).map((m, i) =>
+    `<div class="nudge"><span class="badge ${m.kind === "owner_pref" ? "on-device" : "local"}">${m.kind === "owner_pref" ? "changes who-paid" : "note"}</span> ${i + 1}. ${esc(m.text)}</div>`
+  ).join("") || `<div class="nothing">Nothing yet. Text "remember …" to teach it.</div>`;
+}
+
+async function tick() {
+  try { const d = await (await fetch("/api/feed")).json(); render(d); renderMemories(d); } catch {}
+  setTimeout(tick, 1000);
+}
+tick();
+</script>
+</body>
+</html>

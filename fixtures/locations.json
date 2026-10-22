@@ -1,0 +1,38 @@
+[
+  {
+    "label": "HOME",
+    "address": "1550 Mission Street, San Francisco, CA 94103",
+    "lat": 37.7744,
+    "lng": -122.4192
+  },
+  {
+    "label": "WORK",
+    "address": "1 Market Street, San Francisco, CA 94105",
+    "lat": 37.7941,
+    "lng": -122.3943
+  },
+  {
+    "label": "OTHER",
+    "address": "24 Willie Mays Plaza, San Francisco, CA 94107",
+    "lat": 37.7786,
+    "lng": -122.3893
+  },
+  {
+    "label": "OTHER",
+    "address": "3200 California Street, San Francisco, CA 94118",
+    "lat": 37.7866,
+    "lng": -122.4474
+  },
+  {
+    "label": "OTHER",
+    "address": "1355 Market Street, San Francisco, CA 94103",
+    "lat": 37.7764,
+    "lng": -122.4169
+  },
+  {
+    "label": "OTHER",
+    "address": "780 S Airport Boulevard, San Francisco, CA 94128",
+    "lat": 37.6213,
+    "lng": -122.379
+  }
+]

@@ -1,0 +1,23 @@
+From: Uber Eats <noreply@uber.com>
+To: alex@example.test
+Date: Sun, 04 Oct 2026 02:15:00 GMT
+Message-ID: <dinner-10-3@uber.com>
+Subject: Your Uber Eats order
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<html><body>
+<h1>Thanks for ordering, Alex</h1>
+<p>Here's your receipt for Mission Kitchen. Saturday, October 3, 2026</p>
+<table class="items">
+<tr><td>1</td><td>Chicken Rice Bowl</td><td>$16.00</td></tr>
+<tr><td>1</td><td>Sparkling Water</td><td>$3.50</td></tr>
+</table>
+<table class="totals">
+<tr><td>Subtotal</td><td>$19.50</td></tr>
+<tr><td>Delivery Fee</td><td>$3.68</td></tr>
+<tr><td>Taxes &amp; Other Fees</td><td>$3.67</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>$26.85</strong></td></tr>
+</table>
+<p>Delivered to 1550 Mission Street, San Francisco, CA 94103</p>
+</body></html>

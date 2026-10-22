@@ -1,0 +1,17 @@
+{
+  "name": "fin-agent",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "bun test",
+    "dev": "bun run src/main.ts",
+    "demo": "bun run scripts/demo.ts",
+    "demo:reset": "bun run scripts/reset.ts",
+    "rehearse": "bun run scripts/rehearse.ts",
+    "ledger:status": "bun run scripts/ledger-status.ts"
+  },
+  "dependencies": {
+    "@photon-ai/imessage-kit": "3.0.0",
+    "imapflow": "2.9.1"
+  }
+}

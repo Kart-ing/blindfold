@@ -1,0 +1,22 @@
+From: Uber Receipts <noreply@uber.com>
+To: alex@example.test
+Date: Fri, 16 Oct 2026 03:20:00 GMT
+Message-ID: <tipped-2026-10-15-tip@uber.com>
+Subject: Your Uber trip receipt
+MIME-Version: 1.0
+Content-Type: text/html; charset=UTF-8
+
+<html><body style="font-family:Helvetica">
+<h1>Thanks for riding, Alex</h1>
+<p>Thursday, October 15, 2026</p>
+<table>
+<tr><td>Trip fare</td><td>$0.00</td></tr>
+<tr><td>Booking fee</td><td>$0.00</td></tr>
+<tr><td>Tip</td><td>$4.00</td></tr>
+<tr><td><strong>Total</strong></td><td><strong>$4.00</strong></td></tr>
+</table>
+<h3>UberX &middot; 7.44 miles &middot; 24 min</h3>
+<div class="trip"><p>8:15 PM | 1 Market Street, San Francisco, CA 94105</p>
+<p>8:39 PM | 1550 Mission Street, San Francisco, CA 94103</p></div>
+<p>Payments: American Express &bull;&bull;&bull;&bull; 1009</p>
+</body></html>

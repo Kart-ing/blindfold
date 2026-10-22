@@ -1,0 +1,141 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Live Ledger</title>
+<style>
+  :root { --bg:#0e1116; --panel:#161b22; --line:#262d36; --text:#e6edf3; --muted:#8b949e; --s1:#3987e5; --s2:#d95926;
+          --good:#3fb950; --bad:#f85149; --mono: ui-monospace, "SF Mono", Menlo, monospace; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:15px/1.45 -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  header { display:flex; align-items:baseline; gap:16px; padding:18px 28px; border-bottom:1px solid var(--line); flex-wrap:wrap; }
+  h1 { margin:0; font-size:20px; } a { color:var(--s1); }
+  .pill { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--line); color:var(--muted); }
+  main { padding:20px 28px; display:grid; gap:20px; }
+  @media (max-width: 900px) { main, header { padding:16px; } }
+  .tiles { display:grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap:16px; }
+  @media (max-width: 900px) { .tiles { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+  .tile, section { background:var(--panel); border:1px solid var(--line); border-radius:10px; padding:16px 18px; min-width:0; }
+  .tile .k { color:var(--muted); font-size:13px; } .tile .v { font-size:28px; font-weight:650; font-variant-numeric:tabular-nums; margin-top:4px; }
+  .tile .s { color:var(--muted); font-size:12px; margin-top:6px; }
+  .bar { height:8px; background:var(--line); border-radius:4px; overflow:hidden; margin-top:10px; } .bar > div { height:100%; background:var(--s1); border-radius:4px; }
+  .grid2 { display:grid; grid-template-columns: 1fr 1fr; gap:20px; } @media (max-width: 900px) { .grid2 { grid-template-columns: 1fr; } }
+  h2 { margin:0 0 12px; font-size:13px; text-transform:uppercase; letter-spacing:.08em; color:var(--muted); font-weight:600; }
+  .legend { display:flex; gap:16px; font-size:13px; color:var(--muted); margin-bottom:8px; } .legend i { display:inline-block; width:12px; height:12px; border-radius:3px; margin-right:6px; vertical-align:-1px; }
+  svg text { fill: var(--muted); font-size:12px; }
+  table { width:100%; border-collapse:collapse; font-size:13px; } th { text-align:left; color:var(--muted); font-weight:500; }
+  td, th { padding:7px 6px; border-top:1px solid var(--line); } td.n { text-align:right; font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .ok { color:var(--good); } .no { color:var(--bad); } .muted { color:var(--muted); }
+  #tip { position:fixed; pointer-events:none; background:#0b0f14; border:1px solid var(--line); border-radius:6px; padding:6px 9px; font-size:12px; display:none; z-index:9; }
+</style>
+</head>
+<body>
+<header>
+  <h1>📒 Live ledger</h1><span class="pill" id="src"></span><span class="pill">on this Mac · nothing here is sent anywhere</span>
+  <span class="muted" style="margin-left:auto;font-size:12px" id="upd"></span><a href="/" style="font-size:13px">← what the cloud saw</a>
+</header>
+<main>
+  <div class="tiles" id="tiles"></div>
+  <div class="grid2">
+    <section><h2>Income vs spending (your share)</h2>
+      <div class="legend"><span><i style="background:var(--s1)"></i>Income</span><span><i style="background:var(--s2)"></i>Spending</span></div>
+      <svg id="months" viewBox="0 0 560 240" width="100%" role="img" aria-label="Income and spending by month"></svg>
+      <table id="monthsTable" style="margin-top:8px"></table>
+    </section>
+    <section><h2 id="catTitle">Spending by category</h2><svg id="cats" viewBox="0 0 560 280" width="100%" role="img" aria-label="Spending by category last month"></svg></section>
+  </div>
+  <div class="grid2">
+    <section><h2>Recent transactions</h2><table id="recent"></table></section>
+    <section><h2>Accounts &amp; statements</h2><table id="accounts"></table><table id="stmts" style="margin-top:14px"></table></section>
+  </div>
+</main>
+<div id="tip"></div>
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;" }[c]));
+const usd = (c) => (c < 0 ? "-$" : "$") + Math.round(Math.abs(c) / 100).toLocaleString("en-US");
+const usd2 = (c) => (c < 0 ? "-$" : "$") + (Math.abs(c) / 100).toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+const day = (ts) => new Date(ts * 1000).toLocaleDateString([], { month: "short", day: "numeric" });
+const mon = (ts) => new Date(ts * 1000).toLocaleDateString([], { month: "short", year: "numeric" });
+const cat = (c) => String(c ?? "Other").toLowerCase().replace(/_/g, " ").replace(/^./, (x) => x.toUpperCase());
+const tip = $("tip");
+function hover(el, html) {
+  el.addEventListener("mousemove", (e) => { tip.innerHTML = html; tip.style.display = "block"; tip.style.left = e.clientX + 12 + "px"; tip.style.top = e.clientY + 12 + "px"; });
+  el.addEventListener("mouseleave", () => { tip.style.display = "none"; });
+}
+
+function tiles(d) {
+  const g = d.goal;
+  const pct = g ? Math.max(0, Math.min(100, Math.round((g.saved / g.target) * 100))) : 0;
+  const last = d.months[d.months.length - 2];
+  const t = [
+    { k: "Saved toward goal", v: g ? usd(g.saved) : "—", s: d.manual ? `includes ${usd(d.manual)} you told me about` : "savings accounts" },
+    { k: "Goal", v: g ? usd(g.target) : "No goal yet", s: g ? `by ${mon(g.deadline)} · ${pct}% there` : 'text "goal 10000 by june"', bar: g ? pct : null },
+    { k: "Netting per month", v: g ? usd(g.netMo) : "—", s: g ? `need ${usd(g.needMo)}/mo for the goal` : "income minus spending" },
+    { k: `Spent in ${d.lastLabel}`, v: last ? usd(last.spend) : "—", s: last ? `income ${usd(last.income)}` : "" },
+  ];
+  $("tiles").innerHTML = t.map((x) => `<div class="tile"><div class="k">${esc(x.k)}</div><div class="v">${esc(x.v)}</div>` +
+    (x.bar != null ? `<div class="bar"><div style="width:${x.bar}%"></div></div>` : "") + `<div class="s">${esc(x.s)}</div></div>`).join("");
+}
+
+function monthsChart(d) {
+  const svg = $("months"), W = 560, H = 240, L = 44, B = 210, T = 16;
+  const max = Math.max(1, ...d.months.flatMap((m) => [m.income, m.spend]));
+  const nice = Math.pow(10, Math.floor(Math.log10(max))) * (max / Math.pow(10, Math.floor(Math.log10(max))) > 5 ? 10 : max / Math.pow(10, Math.floor(Math.log10(max))) > 2 ? 5 : 2);
+  const y = (v) => B - (v / nice) * (B - T);
+  const gw = (W - L - 8) / d.months.length, bw = Math.min(34, gw / 3);
+  let s = "";
+  for (let i = 0; i <= 4; i++) { const v = (nice / 4) * i; s += `<line x1="${L}" x2="${W - 4}" y1="${y(v)}" y2="${y(v)}" stroke="#262d36" stroke-width="1"/><text x="${L - 6}" y="${y(v) + 4}" text-anchor="end">${usd(v)}</text>`; }
+  d.months.forEach((m, i) => {
+    const cx = L + gw * i + gw / 2;
+    [["income", "#3987e5", -1], ["spend", "#d95926", 1]].forEach(([k, col, side]) => {
+      const v = m[k], x = cx + (side < 0 ? -bw - 1 : 1), h = Math.max(0, B - y(v));
+      s += `<rect data-i="${i}" data-k="${k}" x="${x}" y="${B - h}" width="${bw}" height="${h}" rx="4" fill="${col}" opacity="${m.partial ? 0.55 : 1}"/>`;
+    });
+    s += `<text x="${cx}" y="${B + 18}" text-anchor="middle">${esc(m.label)}${m.partial ? " (so far)" : ""}</text>`;
+  });
+  svg.innerHTML = s;
+  svg.querySelectorAll("rect").forEach((r) => { const m = d.months[+r.dataset.i]; hover(r, `<b>${esc(m.label)}${m.partial ? " so far" : ""}</b><br>Income ${usd2(m.income)}<br>Spending ${usd2(m.spend)}<br>Net ${usd2(m.income - m.spend)}`); });
+  $("monthsTable").innerHTML = `<tr><th>Month</th><th class="n">Income</th><th class="n">Spending</th><th class="n">Net</th></tr>` +
+    d.months.map((m) => `<tr><td>${esc(m.label)}${m.partial ? ' <span class="muted">(so far)</span>' : ""}</td><td class="n">${usd(m.income)}</td><td class="n">${usd(m.spend)}</td><td class="n">${usd(m.income - m.spend)}</td></tr>`).join("");
+}
+
+function catsChart(d) {
+  $("catTitle").textContent = `Spending by category · ${d.lastLabel}`;
+  const svg = $("cats"), W = 560, L = 170, rowH = 32;
+  const max = Math.max(1, ...d.categories.map((c) => c.cents));
+  const h = Math.max(60, d.categories.length * rowH + 10);
+  svg.setAttribute("viewBox", `0 0 ${W} ${h}`);
+  svg.innerHTML = d.categories.length ? d.categories.map((c, i) => {
+    const w = ((W - L - 90) * c.cents) / max, yy = 6 + i * rowH;
+    return `<text x="${L - 10}" y="${yy + 17}" text-anchor="end">${esc(cat(c.cat))}</text>` +
+      `<rect data-i="${i}" x="${L}" y="${yy + 4}" width="${Math.max(2, w)}" height="18" rx="4" fill="#3987e5"/>` +
+      `<text x="${L + Math.max(2, w) + 8}" y="${yy + 17}">${usd(c.cents)}</text>`;
+  }).join("") : `<text x="10" y="30">No spending recorded for ${esc(d.lastLabel)}.</text>`;
+  svg.querySelectorAll("rect").forEach((r) => { const c = d.categories[+r.dataset.i]; hover(r, `<b>${esc(cat(c.cat))}</b><br>${usd2(c.cents)}`); });
+}
+
+function tables(d) {
+  $("recent").innerHTML = `<tr><th>Date</th><th>Merchant</th><th>Category</th><th class="n">Amount</th></tr>` + d.recent.map((r) =>
+    `<tr><td>${day(r.ts)}</td><td>${esc(r.merchant)}<div class="muted" style="font-size:11px">${esc(r.account)}${r.mask ? " ••" + esc(r.mask) : ""}</div></td><td>${esc(cat(r.category))}</td><td class="n">${r.amount_cents < 0 ? '<span class="ok">+' + usd2(-r.amount_cents) + "</span>" : usd2(r.amount_cents)}</td></tr>`).join("");
+  $("accounts").innerHTML = `<tr><th>Account</th><th>Type</th><th class="n">Balance</th></tr>` + d.accounts.map((a) =>
+    `<tr><td>${esc(a.name)}${a.mask ? " ••" + esc(a.mask) : ""}</td><td>${esc(a.subtype ?? a.type)}</td><td class="n">${a.balance_cents == null ? "—" : usd2(a.balance_cents)}</td></tr>`).join("") +
+    d.assets.map((a) => `<tr><td>${esc(a.name)} <span class="muted">(you told me)</span></td><td>outside asset</td><td class="n">${usd2(a.amount_cents)}</td></tr>`).join("");
+  $("stmts").innerHTML = d.statements.length ? `<tr><th>Statement</th><th>Period</th><th class="n">Rows</th><th class="n">Balances</th></tr>` + d.statements.map((s) =>
+    `<tr><td>${esc(s.account)}${s.mask ? " ••" + esc(s.mask) : ""}</td><td>${s.period_start ? day(s.period_start) + " – " + day(s.period_end) : "—"}</td><td class="n">${s.rows}</td><td class="n">${s.recon_ok == null ? '<span class="muted">n/a</span>' : s.recon_ok ? '<span class="ok">✓ reconciled</span>' : '<span class="no">✗ mismatch</span>'}</td></tr>`).join("")
+    : `<tr><td class="muted">No imported statements in this database (demo data).</td></tr>`;
+}
+
+async function tick() {
+  try {
+    const d = await (await fetch("/api/ledger")).json();
+    $("src").textContent = /real\.db$/.test(d.db) ? "real data" : "demo data";
+    tiles(d); monthsChart(d); catsChart(d); tables(d);
+    $("upd").textContent = "updated " + new Date().toLocaleTimeString([], { hour: "numeric", minute: "2-digit", second: "2-digit" });
+  } catch {}
+  setTimeout(tick, 2000);
+}
+tick();
+</script>
+</body>
+</html>
