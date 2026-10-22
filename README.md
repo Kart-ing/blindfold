@@ -1,4 +1,4 @@
-# Private Finance Agent
+# Blindfold : Private Finance Agent
 
 **Text your finances over iMessage. The cloud model reasons over symbols, and your Mac computes every number.**
 
