@@ -199,12 +199,12 @@ describe("people the DB doesn't know (live: 'my friend Priya' went out in clear)
     const db = openDb(":memory:");
     const s = symbolizeText(db, MSG);
     expect(s.text).toContain("send my friend PERSON_1 the rent");
-    expect(s.text).not.toMatch(/alicia/i);
+    expect(s.text).not.toMatch(/priya/i);
     expect(desymbolize(db, "Your friend PERSON_1 pays the rent.", s.qsyms)).toBe("Your friend Priya pays the rent.");
-    expect(symbolizeText(db, "did alicia pay me back").text).toBe("did PERSON_1 pay me back"); // remembered as a person now
+    expect(symbolizeText(db, "did priya pay me back").text).toBe("did PERSON_1 pay me back"); // remembered as a person now
   });
   test.each([
-    ["my roommate alicia paid half", /^my roommate PERSON_\d+ paid half$/], ["Send Bob the money", /^Send PERSON_\d+ the money$/],
+    ["my roommate priya paid half", /^my roommate PERSON_\d+ paid half$/], ["Send Bob the money", /^Send PERSON_\d+ the money$/],
     ["I zelle Maya for groceries", /^I MERCHANT_\d+ PERSON_\d+ for groceries$/], ["my landlord Greg raised the rent", /^my landlord PERSON_\d+ raised the rent$/],
   ])("%s → a PERSON symbol", (q, re) => expect(symbolizeText(fixture(), q as string).text).toMatch(re as RegExp));
   test.each(["want to quit my job", "I need to cancel it", "compare to September", "How much does getting to work cost me?", "send her the money", "paid to Costco twice"])
